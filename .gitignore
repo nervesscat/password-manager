@@ -1,3 +1,7 @@
 /venv
-key.key
+salt.key
 passwords
+password_hash
+*.csv
+/.vscode
+/__pycache__

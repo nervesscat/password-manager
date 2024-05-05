@@ -213,8 +213,9 @@ def init_args_parser():
 if __name__ == "__main__":
     args = init_args_parser()
 
-    key = authenticate()
     try:
+        key = authenticate()
+        
         if not any(vars(args).values()):
             init()
         else:
