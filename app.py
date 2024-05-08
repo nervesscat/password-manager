@@ -4,6 +4,9 @@ from map_handler import AccountManager, MapManager
 from argparse import ArgumentParser
 import os
 
+# pyinstaller --onefile app.py
+# sudo mv dist/app /usr/local/bin/password_manager
+
 class OPTION(Enum):
     ADD = '1'
     GET = '2'
@@ -103,6 +106,7 @@ def init():
             add_account(website, username, password)
         elif choice == OPTION.GET.value:
             website = input("Enter website: ")
+            username = input("Enter username: ")
             get_password(website, username)
         elif choice == OPTION.SHOW.value:
             website = input("Enter website: ")
@@ -136,7 +140,6 @@ if __name__ == "__main__":
     map_manager = MapManager()
     account_manager = AccountManager(map_manager)
     try:
-        check_password_file_exists()
         run()
     except KeyboardInterrupt:
         print("Exiting...")

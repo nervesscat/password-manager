@@ -8,6 +8,8 @@ import base64
 import os
 import hashlib
 
+__home_dir = os.path.expanduser("~")
+__script_dir = os.path.join(__home_dir, ".password_manager")
 __ACCOUNTS_FILE_NAME = "passwords"
 __KEY_FILE_NAME = "salt.key"
 __PASSWORD_HASH_FILE_NAME = "password_hash"
@@ -41,12 +43,13 @@ def encrypt(key : bytes, data_to_encrypt : str) -> bytes:
     return encrypted_data
 
 def open_file(file_name : str) -> bytes:
-    with open(file_name, "rb") as file:
+    with open(os.path.join(__script_dir, file_name), "rb") as file:
         file_data = file.read()
         return file_data
 
 def save_file(file_name : str, data : bytes) -> None:
-    with open(file_name, "wb") as file:
+    os.makedirs(__script_dir, exist_ok=True)
+    with open(os.path.join(__script_dir, file_name), "wb") as file:
         file.write(data)
 
 def save_salt() -> None:
@@ -100,7 +103,7 @@ def check_password_file_exists() -> None:
     """
     Checks if the password hash file exists, if it doesn't it will create it
     """
-    if not os.path.isfile(__PASSWORD_HASH_FILE_NAME):
+    if not os.path.isfile(os.path.join(__script_dir, __PASSWORD_HASH_FILE_NAME)):
         print("Is it your first time?\nNo password found, please create a password")
         password = getpass("Enter password: ")
         print("Type the password again to confirm")
@@ -117,14 +120,14 @@ def check_password_file_exists() -> None:
     
 def authenticate_user() -> tuple[bool, bytes]:
     try:
+        check_password_file_exists()
         password = getpass("Enter password: ").encode()
         if verify_password(password):
             return True, password
         else:
             return False, password
     except HashNotFoundError:
-        check_password_file_exists()
-        authenticate_user()
+        raise HashNotFoundError("The hash was not found in the system files")
 
 def encrypt_and_save_data(data : str, password : str = None) -> bytes:
     try:
@@ -137,7 +140,6 @@ def encrypt_and_save_data(data : str, password : str = None) -> bytes:
         raise InvalidSignature("The password is incorrect")
     except SaltNotFoundError:
         check_password_file_exists()
-        encrypt_and_save_data(data)
 
 def encrypt_data_from_file(password : bytes, data : str) -> bytes:
     key = get_key_from_password(password, get_salt())
@@ -149,9 +151,6 @@ def get_decrypt_data(password : str = None) -> str:
     """
     Decrypts data from a file
     """
-    if not os.path.isfile(__ACCOUNTS_FILE_NAME):
-        raise EncryptedDataNotFoundError("The encrypted data was not found in the system files")
-
     try:
         if password and verify_password(password.encode()): 
             return decrypt_from_files(password.encode())        
