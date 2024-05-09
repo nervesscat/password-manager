@@ -13,8 +13,7 @@ class MapManager:
             encrypted_data = get_decrypt_data(self.password)
             self._map = json.loads(encrypted_data)
         except InvalidSignature:
-            print("The password is incorrect")
-            exit(0)
+            raise InvalidSignature("The password is incorrect")
         except Exception as e:
             print(f"Failed to load map: {e}")
             self._map = {}
@@ -25,7 +24,7 @@ class MapManager:
             encrypt_and_save_data(encrypted_data, self.password)
         except InvalidSignature:
             print("The password is incorrect")
-            exit(0)
+            encrypt_and_save_data(encrypted_data)
         except Exception as e:
             print(f"Failed to save map: {e}")
 
@@ -107,3 +106,12 @@ class AccountManager:
         map_data = self.map_manager.get_map()
         matches = process.extract(search_key, map_data.keys(), limit=5)
         return [match[0] for match in matches]
+    
+    def modify_password(self, website : str, username : str, new_password : str) -> None:
+        map_data = self.map_manager.get_map()
+        accounts = map_data.get(website, [])
+        for account in accounts:
+            if account["username"] == username:
+                account["password"] = new_password
+                break
+        self.map_manager.update_map(map_data)
