@@ -1,28 +1,18 @@
 from enum import Enum
-from encrypt import check_password_file_exists
-from map_handler import AccountManager, MapManager
+from map_handler import AccountManager, MapManager, InvalidSignature
 from argparse import ArgumentParser
-import os
+from getpass import getpass
+from pyperclip import copy
 
 # pyinstaller --onefile app.py
 # sudo mv dist/app /usr/local/bin/password_manager
-
-class OPTION(Enum):
-    ADD = '1'
-    GET = '2'
-    SHOW = '3'
-    SEARCH = '4'
-    DELETE = '5'
-    DELETE_ALL = '6'
-    LOAD_CSV = '7'
-    EXIT = '0'
 
 def run():
     args = init_args_parser()
     if args.init:
         init()
     elif args.print:
-        print_accounts(args.print[0])
+        search_accounts(args.print[0])
     elif args.get:
         get_password(args.get[0], args.get[1])
     elif args.add:
@@ -38,28 +28,18 @@ def run():
     else:
         init()
 
-def print_accounts(website : str) -> None:
-    best_match = account_manager.search_website_fuzzy(website)
-    accounts_list = account_manager.get_accounts_by_website(best_match)
-    if accounts_list:
-        print(f"Accounts for {best_match}:")
-        for i, account in enumerate(accounts_list, start=1):
-            print(f"{i}. {account['username']}")
-        choice = int(input("Enter account number: ")) - 1
-        if 0 <= choice < len(accounts_list): account_manager.copy_password_to_clipboard(best_match, accounts_list[choice]["username"])
-        else: print("Invalid account number")
-    else:
-        print("No accounts found")
-
 def get_password(website : str, username : str) -> None:
     best_match = account_manager.search_website_fuzzy(website)
     account_manager.copy_password_to_clipboard(best_match, username)
 
 def add_account(website : str, username : str, password : str) -> None:
     best_match = account_manager.search_website_fuzzy(website)
-    print(f"Do you want to add {username} to {best_match}? (y/n)")
+    print(f"Did you mean {best_match}? (y/n)")
     choice = input("Enter choice: ").lower()
-    if choice == "y": account_manager.add_account(best_match, username, password)
+    if choice == "y": 
+        account_manager.add_account(best_match, username, password)
+    else:
+        account_manager.add_account(website, username, password)
 
 def erase_account(website : str, username : str) -> None:
     best_match = account_manager.search_website_fuzzy(website)
@@ -86,8 +66,8 @@ def init_args_parser():
 def get_menu_choice():
     print("1. Add account")
     print("2. Get account")
-    print("3. Show all accounts")
-    print("4. Search")
+    print("3. Search account")
+    print("4. Modify account")
     print("\033[93m5. Delete account\033[0m")
     print("\033[91m6. Delete All Data\033[0m")
     print("7. Load from CSV")
@@ -95,9 +75,58 @@ def get_menu_choice():
     choice = input("Enter choice: ")
     return choice
 
+class OPTION(Enum):
+    ADD = '1'
+    GET = '2'
+    SEARCH = '3'
+    MODIFY = '4'
+    DELETE = '5'
+    DELETE_ALL = '6'
+    LOAD_CSV = '7'
+    EXIT = '0'
+
+def search_websites(website : str) -> str:
+    """
+        Search for websites and return the website
+    """
+    websites = account_manager.search_websites_matches_fuzzy(website)
+    if not websites: return None
+    choice = print_websites_list_and_choice(websites)
+    if 0 <= choice < len(websites): return websites[choice]
+    elif choice == len(websites): return None
+    else: 
+        print("\033[91mInvalid website number\033[0m")
+        return search_websites(website)
+
+def print_websites_list_and_choice(websites : list) -> int:
+    print("\033[92mWebsites found:\033[0m")
+    for i, website in enumerate(websites, start=1):
+        print(f"{i}. {website}")
+    print(f"{str(len(websites) + 1)}. Cancel")
+    return int(input("Enter website number: ")) - 1
+
+def search_accounts(website : str) -> dict | None:
+    """
+        Search for accounts in a website and return the account
+    """
+    accounts_list = account_manager.get_accounts_by_website(website)
+    if not accounts_list: return None
+    choice = print_users_list_and_choice(accounts_list)
+    if 0 <= choice < len(accounts_list): return accounts_list[choice]
+    elif choice == len(accounts_list): return None
+    else: 
+        print("\033[91mInvalid account number\033[0m")
+        return search_accounts(website)
+    
+def print_users_list_and_choice(accounts_list : list) -> int:
+    print(f"\033[92mAccounts found:\033[0m")
+    for i, account in enumerate(accounts_list, start=1):
+        print(f"{i}. {account['username']}")
+    print(f"{str(len(accounts_list) + 1)}. Cancel")
+    return int(input("Enter account number: ")) - 1
+
 def init():
     while True:
-        os.system('cls' if os.name == 'nt' else 'clear')
         choice = get_menu_choice()
         if choice == OPTION.ADD.value:
             website = input("Enter website: ")
@@ -106,21 +135,30 @@ def init():
             add_account(website, username, password)
         elif choice == OPTION.GET.value:
             website = input("Enter website: ")
-            username = input("Enter username: ")
-            get_password(website, username)
-        elif choice == OPTION.SHOW.value:
-            website = input("Enter website: ")
-            print_accounts(website)
+            website = search_websites(website)
+            if not website: continue
+            account = search_accounts(website)
+            if account: copy(account['password'])
         elif choice == OPTION.SEARCH.value:
             website = input("Enter website: ")
-            websites = account_manager.search_websites_matches_fuzzy(website)
-            for i, website in enumerate(websites, start=1):
-                print(f"{i}. {website}")
-            input("Press enter to continue")
+            website = search_websites(website)
+        elif choice == OPTION.MODIFY.value:
+            website = input("Enter website: ")
+            website = search_websites(website)
+            if not website: continue
+            account = search_accounts(website)
+            if not account: continue
+            new_password = input("Enter new password: ")
+            account_manager.modify_password(website, account['username'], new_password)
         elif choice == OPTION.DELETE.value:
             website = input("Enter website: ")
-            username = input("Enter username: ")
-            erase_account(website, username)
+            website = search_websites(website)
+            if not website: continue
+            account = search_accounts(website)
+            if not account: continue
+            print(f"\033[93mAre you sure you want to delete this account ({account['username']}) from {website}?\033[0m")
+            choice = input("Enter choice (y/n): ").lower()
+            if choice == "y": account_manager.remove_account(website, account['username'])
         elif choice == OPTION.DELETE_ALL.value:
             erase_all()
         elif choice == OPTION.LOAD_CSV.value:
@@ -137,12 +175,15 @@ def init():
             print("Invalid choice")
 
 if __name__ == "__main__":
-    map_manager = MapManager()
-    account_manager = AccountManager(map_manager)
     try:
+        password = getpass("Enter password: ")
+        map_manager = MapManager(password)
+        account_manager = AccountManager(map_manager)
         run()
     except KeyboardInterrupt:
         print("Exiting...")
         exit(0)
+    except InvalidSignature:
+        print("Password is incorrect, please try again")
     finally:
         pass
