@@ -8,20 +8,15 @@ import base64
 import os
 import hashlib
 
-__home_dir = os.path.expanduser("~")
-__script_dir = os.path.join(__home_dir, ".password_manager")
+class HashNotFoundError(FileNotFoundError): pass
+class SaltNotFoundError(FileNotFoundError): pass
+class EncryptedDataNotFoundError(FileNotFoundError): pass
+
+__HOME_DIR = os.path.expanduser("~")
+__SCRIPT_DIR = os.path.join(__HOME_DIR, ".password_manager")
 __ACCOUNTS_FILE_NAME = "passwords"
 __KEY_FILE_NAME = "salt.key"
 __PASSWORD_HASH_FILE_NAME = "password_hash"
-
-class HashNotFoundError(FileNotFoundError):
-    pass
-
-class SaltNotFoundError(FileNotFoundError):
-    pass
-
-class EncryptedDataNotFoundError(FileNotFoundError):
-    pass
 
 def get_key_from_password(password : bytes, salt : bytes) -> bytes:
     """
@@ -43,19 +38,18 @@ def encrypt(key : bytes, data_to_encrypt : str) -> bytes:
     return encrypted_data
 
 def open_file(file_name : str) -> bytes:
-    with open(os.path.join(__script_dir, file_name), "rb") as file:
+    with open(os.path.join(__SCRIPT_DIR, file_name), "rb") as file:
         file_data = file.read()
         return file_data
 
 def save_file(file_name : str, data : bytes) -> None:
-    os.makedirs(__script_dir, exist_ok=True)
-    with open(os.path.join(__script_dir, file_name), "wb") as file:
+    os.makedirs(__SCRIPT_DIR, exist_ok=True)
+    with open(os.path.join(__SCRIPT_DIR, file_name), "wb") as file:
         file.write(data)
 
 def save_salt() -> None:
     salt = os.urandom(16)
     save_file(__KEY_FILE_NAME, salt)
-
 
 def get_salt() -> bytes:
     try:
@@ -103,7 +97,7 @@ def check_password_file_exists() -> None:
     """
     Checks if the password hash file exists, if it doesn't it will create it
     """
-    if not os.path.isfile(os.path.join(__script_dir, __PASSWORD_HASH_FILE_NAME)):
+    if not os.path.isfile(os.path.join(__SCRIPT_DIR, __PASSWORD_HASH_FILE_NAME)):
         print("Is it your first time?\nNo password found, please create a password")
         password = getpass("Enter password: ")
         print("Type the password again to confirm")
@@ -137,9 +131,10 @@ def encrypt_and_save_data(data : str, password : str = None) -> bytes:
         is_authenticated, password_bytes = authenticate_user()
         if is_authenticated:
             return encrypt_data_from_file(password_bytes, data)
-        raise InvalidSignature("The password is incorrect")
     except SaltNotFoundError:
         check_password_file_exists()
+    except InvalidSignature:
+        raise InvalidSignature("The password is incorrect")
 
 def encrypt_data_from_file(password : bytes, data : str) -> bytes:
     key = get_key_from_password(password, get_salt())
